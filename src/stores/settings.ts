@@ -42,11 +42,15 @@ const useSettingsStore = create<SettingsStore>()((set, get) => {
       .then((initialSettings) => {
         set((state) => ({
           ...state,
-          // Merging all settings from main process store
-          ...(initialSettings as Partial<SettingsStore>),
+          // Safely merge initialSettings, ensuring it's an object
+          ...(initialSettings || {}),
         }));
       })
-      .catch((err) => console.error("Failed to get initial settings:", err));
+      .catch((err) => {
+        console.error("Failed to get initial settings, using defaults:", err);
+        // Ensure defaults are set if IPC fails, though store already has defaults
+        set((state) => ({ ...state }));
+      });
   }
 
   getAppVersion().then((res) => set({ version: res }));
