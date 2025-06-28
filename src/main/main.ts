@@ -53,6 +53,7 @@ class AppUpdater {
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let isQuitting = false; // Flag to indicate if app is actually quitting
 
 ipcMain.on("ipc-example", async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -121,11 +122,16 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  const iconPath =
+    process.platform === "win32"
+      ? getAssetPath("icon.ico")
+      : getAssetPath("icon.png");
+
   mainWindow = new BrowserWindow({
     show: false,
     width: 1280,
     height: 720,
-    icon: getAssetPath("icon.png"),
+    icon: iconPath, // Use platform-specific icon
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, "preload.js")
@@ -155,12 +161,18 @@ const createWindow = async () => {
   });
 
   mainWindow.on("close", (event) => {
+    if (isQuitting) {
+      // If we are intentionally quitting (e.g., via tray menu "Quit"),
+      // don't prevent default and allow the window to close.
+      return;
+    }
     const hideToSystemTraySetting = store.get("hideToSystemTray");
     if (hideToSystemTraySetting && tray) {
       event.preventDefault();
       mainWindow?.hide();
     } else {
-      // Allow the app to close normally
+      // Allow the app to close normally, which might lead to app quit
+      // if this is the last window and not on macOS.
     }
   });
 
@@ -192,14 +204,17 @@ const setupGlobalShortcuts = () => {
       }
       lastCtrlCPressTime = 0; // Reset timestamp
     } else {
-      // First press
+      // First press:
+      // 1. Read selected text.
+      // 2. Write it to the clipboard. This ensures standard copy behavior.
+      // 3. Record the press time.
+      const selectedText = clipboard.readText("selection");
+      if (selectedText && selectedText.length > 0) {
+        clipboard.writeText(selectedText, "clipboard");
+      }
+      // Even if no text is selected, we still record the press time for double-press detection,
+      // though the "copy to app" feature won't do much without text.
       lastCtrlCPressTime = now;
-      // We don't want to block the normal copy functionality,
-      // so we can re-trigger the copy command.
-      // This is a bit of a hack. A more robust solution might involve
-      // a native module or more complex event handling if this doesn't work reliably.
-      // For now, we assume the OS will handle the actual copy on the first press.
-      // If not, we might need to manually write to clipboard here too.
     }
   });
 };
@@ -219,12 +234,13 @@ const createTray = () => {
     {
       label: "Quit",
       click: () => {
+        isQuitting = true; // Set the flag
         app.quit();
       },
     },
   ]);
 
-  tray.setToolTip("My Electron App");
+  tray.setToolTip("calt"); // Changed tooltip here
   tray.setContextMenu(contextMenu);
 
   tray.on("click", () => {
