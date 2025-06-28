@@ -105,10 +105,10 @@ export default function ParagraphOptions() {
     currentModel,
     currentUseRefinement,
   ]);
-  const setContext = useParagraphStore((state) => state.setContext);
-  const addExample = useParagraphStore((state) => state.addExample);
-  const removeExampleAt = useParagraphStore((state) => state.removeExampleAt);
-  const modifyExampleAt = useParagraphStore((state) => state.modifyExampleAt);
+  // const setContext = useParagraphStore((state) => state.setContext); // Removed duplicate
+  // const addExample = useParagraphStore((state) => state.addExample); // Removed duplicate
+  // const removeExampleAt = useParagraphStore((state) => state.removeExampleAt); // Removed duplicate
+  // const modifyExampleAt = useParagraphStore((state) => state.modifyExampleAt); // Removed duplicate
 
   const languageOptions = languages.map((e) => e.endonym);
 
