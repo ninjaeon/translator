@@ -1,9 +1,12 @@
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
-import { exposeIPC } from "./bridge";
+import { AppSettings, exposeIPC } from "./bridge"; // Import AppSettings
 
-export type Channels = "ipc-example";
+export type Channels =
+  | "ipc-example"
+  | "global-shortcut-copy"
+  | "settings-updated"; // Added "settings-updated"
 
 const electronHandler = {
   ipcRenderer: {
@@ -22,6 +25,14 @@ const electronHandler = {
     once(channel: Channels, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
+    // Specific listener for the global shortcut
+    onGlobalShortcutCopy(func: (text: string) => void) {
+      const subscription = (_event: IpcRendererEvent, text: string) => func(text);
+      ipcRenderer.on("global-shortcut-copy", subscription);
+      return () => {
+        ipcRenderer.removeListener("global-shortcut-copy", subscription);
+      };
+    }
   },
 };
 

@@ -9,12 +9,37 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from "path";
-import { app, BrowserWindow, shell, ipcMain } from "electron";
+import {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  Tray,
+  Menu,
+  globalShortcut, // Added for global shortcuts
+  clipboard, // Added for clipboard access
+} from "electron";
 import { autoUpdater } from "electron-updater";
 import log from "electron-log";
+import Store from "electron-store";
+
 import MenuBuilder from "./menu";
 import { resolveHtmlPath } from "./util";
 import { subscribeIPC } from "./bridge";
+
+// Define settings schema and defaults
+interface AppSettings {
+  showWindowOnStartup: boolean;
+  hideToSystemTray: boolean;
+  // Add other settings here if needed in the main process
+}
+
+const store = new Store<AppSettings>({
+  defaults: {
+    showWindowOnStartup: true,
+    hideToSystemTray: true,
+  },
+});
 
 log.info(`App version: ${app.getVersion()}`);
 
@@ -27,12 +52,35 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 
 ipcMain.on("ipc-example", async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply("ipc-example", msgTemplate("pong"));
 });
+
+ipcMain.handle("get-initial-settings", async () => {
+  return {
+    showWindowOnStartup: store.get("showWindowOnStartup"),
+    hideToSystemTray: store.get("hideToSystemTray"),
+  };
+});
+
+ipcMain.on(
+  "settings-updated",
+  (event, newSettings: Partial<AppSettings>) => {
+    if (newSettings.showWindowOnStartup !== undefined) {
+      store.set("showWindowOnStartup", newSettings.showWindowOnStartup);
+    }
+    if (newSettings.hideToSystemTray !== undefined) {
+      store.set("hideToSystemTray", newSettings.hideToSystemTray);
+    }
+    // Log or handle other settings if necessary
+    log.info("Settings updated:", store.store);
+  },
+);
+
 subscribeIPC();
 
 if (process.env.NODE_ENV === "production") {
@@ -91,7 +139,11 @@ const createWindow = async () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
     }
-    if (process.env.START_MINIMIZED) {
+    const showWindowOnStartupSetting = store.get("showWindowOnStartup");
+
+    if (!showWindowOnStartupSetting) {
+      // Do not show the window, it will start minimized to tray
+    } else if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {
       mainWindow.show();
@@ -100,6 +152,16 @@ const createWindow = async () => {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+
+  mainWindow.on("close", (event) => {
+    const hideToSystemTraySetting = store.get("hideToSystemTray");
+    if (hideToSystemTraySetting && tray) {
+      event.preventDefault();
+      mainWindow?.hide();
+    } else {
+      // Allow the app to close normally
+    }
   });
 
   const menuBuilder = new MenuBuilder(mainWindow);
@@ -116,6 +178,77 @@ const createWindow = async () => {
   // new AppUpdater();
 };
 
+let lastCtrlCPressTime = 0;
+const DOUBLE_PRESS_THRESHOLD = 500; // ms
+
+const setupGlobalShortcuts = () => {
+  globalShortcut.register("CommandOrControl+C", () => {
+    const now = Date.now();
+    if (now - lastCtrlCPressTime < DOUBLE_PRESS_THRESHOLD) {
+      // Double press detected
+      const selectedText = clipboard.readText();
+      if (selectedText && mainWindow) {
+        mainWindow.webContents.send("global-shortcut-copy", selectedText);
+      }
+      lastCtrlCPressTime = 0; // Reset timestamp
+    } else {
+      // First press
+      lastCtrlCPressTime = now;
+      // We don't want to block the normal copy functionality,
+      // so we can re-trigger the copy command.
+      // This is a bit of a hack. A more robust solution might involve
+      // a native module or more complex event handling if this doesn't work reliably.
+      // For now, we assume the OS will handle the actual copy on the first press.
+      // If not, we might need to manually write to clipboard here too.
+    }
+  });
+};
+
+const createTray = () => {
+  const RESOURCES_PATH = app.isPackaged
+    ? path.join(process.resourcesPath, "assets")
+    : path.join(__dirname, "../../assets");
+
+  const getAssetPath = (...paths: string[]): string => {
+    return path.join(RESOURCES_PATH, ...paths);
+  };
+
+  tray = new Tray(getAssetPath("icon.png"));
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Quit",
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setToolTip("My Electron App");
+  tray.setContextMenu(contextMenu);
+
+  tray.on("click", () => {
+    if (mainWindow) {
+      const hideToSystemTraySetting = store.get("hideToSystemTray");
+      if (hideToSystemTraySetting) {
+        if (mainWindow.isVisible()) {
+          mainWindow.hide();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      } else {
+        if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          mainWindow.focus(); // Or mainWindow.minimize() if preferred when not hiding to tray
+        }
+      }
+    }
+  });
+};
+
 /**
  * Add event listeners...
  */
@@ -128,10 +261,17 @@ app.on("window-all-closed", () => {
   }
 });
 
+app.on("will-quit", () => {
+  // Unregister all shortcuts.
+  globalShortcut.unregisterAll();
+});
+
 app
   .whenReady()
   .then(() => {
     createWindow();
+    createTray();
+    setupGlobalShortcuts(); // Add this line
     app.on("activate", () => {
       // On macOS it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.

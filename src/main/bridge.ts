@@ -32,9 +32,21 @@ export function exposeIPC() {
       return ipcRenderer.invoke("readAssetCsvFile", ...paths);
     },
     getAppVersion: (): Promise<string> => ipcRenderer.invoke("getAppVersion"),
+    getInitialSettings: (): Promise<Partial<AppSettings>> =>
+      ipcRenderer.invoke("get-initial-settings"),
+    sendSettingsUpdated: (settings: Partial<AppSettings>): void => {
+      ipcRenderer.send("settings-updated", settings);
+    },
   };
   contextBridge.exposeInMainWorld("api", handler);
   return handler;
+}
+
+// Define AppSettings in a way that it can be shared or duplicated if necessary
+// For now, this is a simple duplication for the renderer's context.
+export interface AppSettings {
+  showWindowOnStartup: boolean;
+  hideToSystemTray: boolean;
 }
 
 declare global {

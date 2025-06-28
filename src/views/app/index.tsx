@@ -8,10 +8,16 @@ import {
   Text,
   Space,
   Stack,
+  Switch, // Added for settings, though might not be directly used here
 } from "@mantine/core";
-import { IconHelp, IconLanguageHiragana } from "@tabler/icons-react";
+import {
+  IconHelp,
+  IconLanguageHiragana,
+  IconSettings, // Added for settings icon
+} from "@tabler/icons-react";
 
 import classes from "./index.module.css";
+import useSettingsStore from "../../stores/settings"; // Added for settings
 import {
   HashRouter,
   NavLink,
@@ -21,6 +27,7 @@ import {
 } from "react-router-dom";
 import Paragraph from "../paragraph";
 import Help from "../help";
+import SettingsPage from "../settings"; // Added for settings page
 
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
@@ -46,12 +53,16 @@ export default function App() {
               <NavIcon to="/help" tooltip="Help">
                 <IconHelp className={classes["nav-icon"]} />
               </NavIcon>
+              <NavIcon to="/settings" tooltip="Settings">
+                <IconSettings className={classes["nav-icon"]} />
+              </NavIcon>
             </Stack>
           </AppShell.Navbar>
           <AppShell.Main>
             <Routes>
               <Route path="/" element={<Paragraph />}></Route>
               <Route path="/help" element={<Help />}></Route>
+              <Route path="/settings" element={<SettingsPage />}></Route>
               <Route path="*" element={<NotFoundPage />}></Route>
             </Routes>
           </AppShell.Main>

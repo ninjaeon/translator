@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 import "@mantine/core/styles.css";
 import {
   Text,
@@ -25,6 +25,23 @@ export default function ParagraphTexts() {
   const translatedText = useParagraphStore((state) => state.translatedText);
   const confidenceScore = useParagraphStore((state) => state.confidenceScore);
   const setOriginalText = useParagraphStore((state) => state.setOriginalText);
+
+  useEffect(() => {
+    // Ensure window.electron.ipcRenderer is available
+    if (window.electron && window.electron.ipcRenderer) {
+      const removeListener = window.electron.ipcRenderer.onGlobalShortcutCopy(
+        (text: string) => {
+          setOriginalText(text);
+        },
+      );
+      return () => {
+        if (removeListener) {
+          removeListener();
+        }
+      };
+    }
+    return () => {}; // Return an empty function if ipcRenderer is not available
+  }, [setOriginalText]);
 
   const canTranslate: boolean =
     model !== "" &&
