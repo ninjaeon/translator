@@ -47,6 +47,10 @@ export function exposeIPC() {
 export interface AppSettings {
   showWindowOnStartup: boolean;
   hideToSystemTray: boolean;
+  selectedModel: string | null;
+  sourceLanguageCode: string | null;
+  targetLanguageCode: string | null;
+  useRefinement: boolean;
 }
 
 declare global {

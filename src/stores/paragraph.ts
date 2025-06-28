@@ -30,20 +30,41 @@ const useParagraphStore = create<ParagraphStore>()((set, get) => ({
     targetLang: languageNull,
     examples: [],
   },
-  model: "",
-  availableModels: [],
-  allLanguages: [],
-  useRefinement: false,
+  // Initial values will be set from useSettingsStore after it loads
+  model: useSettingsStore.getState().selectedModel ?? "",
+  useRefinement: useSettingsStore.getState().useRefinement ?? false,
+  // Note: sourceLang and targetLang are Language objects.
+  // We'll need a bit more logic to initialize them from codes.
+  // For now, request will start with languageNull and components will populate.
+  request: {
+    text: "",
+    sourceLang: languageNull, // Initialize with null, components will set from settings
+    targetLang: languageNull, // Initialize with null, components will set from settings
+    examples: [],
+  },
   translatedText: "",
   isTranslating: false,
   confidenceScore: null,
 
-  setModel: (model) => set({ model: model ?? "" }),
-  setSourceLang: (lang) =>
-    set({ request: { ...get().request, sourceLang: lang ?? languageNull } }),
-  setTargetLang: (lang) =>
-    set({ request: { ...get().request, targetLang: lang ?? languageNull } }),
-  setUseRefinement: (useRefinement) => set({ useRefinement: useRefinement }),
+  setModel: (model) => {
+    const newModel = model ?? "";
+    set({ model: newModel });
+    useSettingsStore.getState().persistSelectedModel(newModel);
+  },
+  setSourceLang: (lang) => {
+    const newLang = lang ?? languageNull;
+    set({ request: { ...get().request, sourceLang: newLang } });
+    useSettingsStore.getState().persistSourceLanguageCode(newLang.code);
+  },
+  setTargetLang: (lang) => {
+    const newLang = lang ?? languageNull;
+    set({ request: { ...get().request, targetLang: newLang } });
+    useSettingsStore.getState().persistTargetLanguageCode(newLang.code);
+  },
+  setUseRefinement: (useRefinement) => {
+    set({ useRefinement: useRefinement });
+    useSettingsStore.getState().persistUseRefinement(useRefinement);
+  },
   setContext: (context) =>
     set({ request: { ...get().request, context: context } }),
   removeExampleAt: (index) =>

@@ -11,6 +11,7 @@ import {
   Switch,
   HoverCard,
 } from "@mantine/core";
+import { useEffect } from "react"; // Import useEffect
 
 import classes from "./ParagraphOptions.module.css";
 import {
@@ -20,17 +21,90 @@ import {
 } from "@tabler/icons-react";
 import useParagraphStore from "../../stores/paragraph";
 import useSettingsStore from "../../stores/settings";
-import Language from "../../models/language";
+import Language, { languageNull } from "../../models/language"; // Import languageNull
 
 export default function ParagraphOptions() {
-  const models = useSettingsStore((state) => state.models);
-  const languages = useSettingsStore((state) => state.languages);
-  const request = useParagraphStore((state) => state.request);
-  const useRefinement = useParagraphStore((state) => state.useRefinement);
-  const setModel = useParagraphStore((state) => state.setModel);
-  const setSourceLang = useParagraphStore((state) => state.setSourceLang);
-  const setTargetLang = useParagraphStore((state) => state.setTargetLang);
-  const setUseRefinement = useParagraphStore((state) => state.setUseRefinement);
+  // Settings from useSettingsStore (which loads persisted values)
+  const settingsStore = useSettingsStore();
+  const {
+    models,
+    languages,
+    selectedModel: persistedModel,
+    sourceLanguageCode: persistedSourceLangCode,
+    targetLanguageCode: persistedTargetLangCode,
+    useRefinement: persistedUseRefinement,
+  } = settingsStore;
+
+  // State and setters from useParagraphStore
+  const paragraphStore = useParagraphStore();
+  const {
+    request,
+    model: currentModel,
+    useRefinement: currentUseRefinement,
+  } = paragraphStore;
+  const {
+    setModel,
+    setSourceLang,
+    setTargetLang,
+    setUseRefinement,
+    setContext, // Keep existing ones
+    addExample,
+    removeExampleAt,
+    modifyExampleAt,
+  } = paragraphStore;
+
+  // Effect to initialize paragraph store from persisted settings
+  useEffect(() => {
+    // Initialize model
+    if (persistedModel && persistedModel !== currentModel) {
+      setModel(persistedModel);
+    }
+
+    // Initialize source language
+    if (
+      languages.length > 0 &&
+      persistedSourceLangCode &&
+      persistedSourceLangCode !== request.sourceLang.code
+    ) {
+      const lang = languages.find((l) => l.code === persistedSourceLangCode);
+      setSourceLang(lang ?? languageNull);
+    } else if (!persistedSourceLangCode && request.sourceLang !== languageNull) {
+      setSourceLang(languageNull); // Reset if persisted code is null
+    }
+
+    // Initialize target language
+    if (
+      languages.length > 0 &&
+      persistedTargetLangCode &&
+      persistedTargetLangCode !== request.targetLang.code
+    ) {
+      const lang = languages.find((l) => l.code === persistedTargetLangCode);
+      setTargetLang(lang ?? languageNull);
+    } else if (!persistedTargetLangCode && request.targetLang !== languageNull) {
+      setTargetLang(languageNull); // Reset if persisted code is null
+    }
+
+    // Initialize use refinement
+    // Check if currentUseRefinement is different from persisted to avoid loop if already set by store's own init
+    if (persistedUseRefinement !== currentUseRefinement) {
+       setUseRefinement(persistedUseRefinement);
+    }
+
+  }, [
+    persistedModel,
+    persistedSourceLangCode,
+    persistedTargetLangCode,
+    persistedUseRefinement,
+    languages, // Important dependency for language lookup
+    setModel,
+    setSourceLang,
+    setTargetLang,
+    setUseRefinement,
+    request.sourceLang, // To re-run if sourceLang object changes by other means
+    request.targetLang, // To re-run if targetLang object changes by other means
+    currentModel,
+    currentUseRefinement,
+  ]);
   const setContext = useParagraphStore((state) => state.setContext);
   const addExample = useParagraphStore((state) => state.addExample);
   const removeExampleAt = useParagraphStore((state) => state.removeExampleAt);
@@ -47,7 +121,7 @@ export default function ParagraphOptions() {
             *
           </Text>
         </Text>
-        <Select data={models} onChange={setModel}></Select>
+        <Select data={models} value={currentModel} onChange={setModel}></Select>
       </Group>
 
       <Group justify="space-between">
@@ -60,23 +134,23 @@ export default function ParagraphOptions() {
         <Group>
           <Select
             data={languageOptions}
+            value={request.sourceLang?.endonym || null}
             w="7rem"
             searchable
             onChange={(value) => {
               const lang = languages.find((e) => e.endonym === value);
-              if (lang === undefined) setSourceLang(null);
-              else setSourceLang(lang);
+              setSourceLang(lang ?? languageNull);
             }}
           ></Select>
           <Text>to</Text>
           <Select
             data={languageOptions}
+            value={request.targetLang?.endonym || null}
             w="7rem"
             searchable
             onChange={(value) => {
               const lang = languages.find((e) => e.endonym === value);
-              if (lang === undefined) setTargetLang(null);
-              else setTargetLang(lang);
+              setTargetLang(lang ?? languageNull);
             }}
           ></Select>
         </Group>

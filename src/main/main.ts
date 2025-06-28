@@ -31,13 +31,22 @@ import { subscribeIPC } from "./bridge";
 interface AppSettings {
   showWindowOnStartup: boolean;
   hideToSystemTray: boolean;
-  // Add other settings here if needed in the main process
+  // Persisted UI selections
+  selectedModel: string | null;
+  sourceLanguageCode: string | null;
+  targetLanguageCode: string | null;
+  useRefinement: boolean;
 }
 
 const store = new Store<AppSettings>({
   defaults: {
     showWindowOnStartup: true,
     hideToSystemTray: true,
+    // Defaults for UI selections
+    selectedModel: null, // Or a default model name if applicable
+    sourceLanguageCode: null, // Or a default source language code
+    targetLanguageCode: null, // Or a default target language code
+    useRefinement: false,
   },
 });
 
@@ -65,6 +74,10 @@ ipcMain.handle("get-initial-settings", async () => {
   return {
     showWindowOnStartup: store.get("showWindowOnStartup"),
     hideToSystemTray: store.get("hideToSystemTray"),
+    selectedModel: store.get("selectedModel"),
+    sourceLanguageCode: store.get("sourceLanguageCode"),
+    targetLanguageCode: store.get("targetLanguageCode"),
+    useRefinement: store.get("useRefinement"),
   };
 });
 
@@ -77,7 +90,18 @@ ipcMain.on(
     if (newSettings.hideToSystemTray !== undefined) {
       store.set("hideToSystemTray", newSettings.hideToSystemTray);
     }
-    // Log or handle other settings if necessary
+    if (newSettings.selectedModel !== undefined) {
+      store.set("selectedModel", newSettings.selectedModel);
+    }
+    if (newSettings.sourceLanguageCode !== undefined) {
+      store.set("sourceLanguageCode", newSettings.sourceLanguageCode);
+    }
+    if (newSettings.targetLanguageCode !== undefined) {
+      store.set("targetLanguageCode", newSettings.targetLanguageCode);
+    }
+    if (newSettings.useRefinement !== undefined) {
+      store.set("useRefinement", newSettings.useRefinement);
+    }
     log.info("Settings updated:", store.store);
   },
 );
@@ -190,32 +214,21 @@ const createWindow = async () => {
   // new AppUpdater();
 };
 
-let lastCtrlCPressTime = 0;
-const DOUBLE_PRESS_THRESHOLD = 500; // ms
+// Removed lastCtrlCPressTime and DOUBLE_PRESS_THRESHOLD as they are no longer needed.
 
 const setupGlobalShortcuts = () => {
-  globalShortcut.register("CommandOrControl+C", () => {
-    const now = Date.now();
-    if (now - lastCtrlCPressTime < DOUBLE_PRESS_THRESHOLD) {
-      // Double press detected
-      const selectedText = clipboard.readText();
-      if (selectedText && mainWindow) {
-        mainWindow.webContents.send("global-shortcut-copy", selectedText);
-      }
-      lastCtrlCPressTime = 0; // Reset timestamp
-    } else {
-      // First press:
-      // 1. Read selected text.
-      // 2. Write it to the clipboard. This ensures standard copy behavior.
-      // 3. Record the press time.
-      const selectedText = clipboard.readText("selection");
-      if (selectedText && selectedText.length > 0) {
-        clipboard.writeText(selectedText, "clipboard");
-      }
-      // Even if no text is selected, we still record the press time for double-press detection,
-      // though the "copy to app" feature won't do much without text.
-      lastCtrlCPressTime = now;
+  // Register CommandOrControl+Shift+C as the new shortcut
+  globalShortcut.register("CommandOrControl+Shift+C", () => {
+    // 1. Read selected text.
+    const selectedTextFromSelection = clipboard.readText("selection");
+
+    // 2. Send it to the renderer process if mainWindow exists.
+    if (selectedTextFromSelection && selectedTextFromSelection.length > 0 && mainWindow) {
+      mainWindow.webContents.send("global-shortcut-copy", selectedTextFromSelection);
     }
+    // Note: We are NOT writing to the main clipboard here.
+    // The goal is to send selected text to the app with this specific shortcut,
+    // leaving the standard clipboard (Cmd/Ctrl+C) behavior untouched.
   });
 };
 

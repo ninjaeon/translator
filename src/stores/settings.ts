@@ -11,11 +11,21 @@ export interface SettingsStore {
   models: string[];
   showWindowOnStartup: boolean;
   hideToSystemTray: boolean;
+  // Persisted UI selections - also mirrored here for central loading
+  selectedModel: string | null;
+  sourceLanguageCode: string | null;
+  targetLanguageCode: string | null;
+  useRefinement: boolean;
 
   updateHost: (text: string) => Promise<void>;
   closeInvalidAlert: () => void;
   toggleShowWindowOnStartup: () => void;
   toggleHideToSystemTray: () => void;
+  // Setters for new persisted UI things, to notify main process
+  persistSelectedModel: (model: string | null) => void;
+  persistSourceLanguageCode: (code: string | null) => void;
+  persistTargetLanguageCode: (code: string | null) => void;
+  persistUseRefinement: (use: boolean) => void;
 }
 
 const useSettingsStore = create<SettingsStore>()((set, get) => {
@@ -32,10 +42,8 @@ const useSettingsStore = create<SettingsStore>()((set, get) => {
       .then((initialSettings) => {
         set((state) => ({
           ...state,
-          showWindowOnStartup:
-            initialSettings.showWindowOnStartup ?? state.showWindowOnStartup,
-          hideToSystemTray:
-            initialSettings.hideToSystemTray ?? state.hideToSystemTray,
+          // Merging all settings from main process store
+          ...(initialSettings as Partial<SettingsStore>),
         }));
       })
       .catch((err) => console.error("Failed to get initial settings:", err));
@@ -52,6 +60,11 @@ const useSettingsStore = create<SettingsStore>()((set, get) => {
     models: [],
     showWindowOnStartup: true,
     hideToSystemTray: true,
+    // Defaults for UI selections
+    selectedModel: null,
+    sourceLanguageCode: null,
+    targetLanguageCode: null,
+    useRefinement: false,
 
     updateHost: updateHost,
     closeInvalidAlert: () => set({ alertInvalidHost: false }),
@@ -67,6 +80,30 @@ const useSettingsStore = create<SettingsStore>()((set, get) => {
       set({ hideToSystemTray: newValue });
       if (window.api && window.api.sendSettingsUpdated) {
         window.api.sendSettingsUpdated({ hideToSystemTray: newValue });
+      }
+    },
+    persistSelectedModel: (model) => {
+      set({ selectedModel: model });
+      if (window.api && window.api.sendSettingsUpdated) {
+        window.api.sendSettingsUpdated({ selectedModel: model });
+      }
+    },
+    persistSourceLanguageCode: (code) => {
+      set({ sourceLanguageCode: code });
+      if (window.api && window.api.sendSettingsUpdated) {
+        window.api.sendSettingsUpdated({ sourceLanguageCode: code });
+      }
+    },
+    persistTargetLanguageCode: (code) => {
+      set({ targetLanguageCode: code });
+      if (window.api && window.api.sendSettingsUpdated) {
+        window.api.sendSettingsUpdated({ targetLanguageCode: code });
+      }
+    },
+    persistUseRefinement: (use) => {
+      set({ useRefinement: use });
+      if (window.api && window.api.sendSettingsUpdated) {
+        window.api.sendSettingsUpdated({ useRefinement: use });
       }
     },
   };

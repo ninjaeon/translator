@@ -217,7 +217,8 @@
       "target": [
         "msi",
         "zip"
-      ]
+      ],
+      "icon": "assets/icon.ico"
     },
     "linux": {
       "target": [
